@@ -281,7 +281,7 @@ Sales (
 
 ---
 
-## 🚨 Part 3: Low-Stock Alert API
+##  Part 3: Low-Stock Alert API
 **Endpoint**
 ```python
 GET /api/companies/{company_id}/alerts/low-stock
