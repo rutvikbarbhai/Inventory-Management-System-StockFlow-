@@ -1,0 +1,65 @@
+
+from datetime import datetime, timedelta
+from sqlalchemy.sql import func
+
+@app.route('/api/companies/<int:company_id>/alerts/low-stock', methods=['GET'])
+def low_stock_alerts(company_id):
+    RECENT_DAYS = 30
+    recent_cutoff = datetime.utcnow() - timedelta(days=RECENT_DAYS)
+
+    alerts = []
+
+    inventories = (
+        db.session.query(Inventory, Product, Warehouse)
+        .join(Product)
+        .join(Warehouse)
+        .filter(Warehouse.company_id == company_id)
+        .all()
+    )
+
+    for inventory, product, warehouse in inventories:
+        sales = (
+            db.session.query(func.sum(Sales.quantity))
+            .filter(
+                Sales.product_id == product.id,
+                Sales.warehouse_id == warehouse.id,
+                Sales.sold_at >= recent_cutoff
+            )
+            .scalar() or 0
+        )
+
+        if sales == 0:
+            continue
+
+        threshold = get_threshold_for_product(product.product_type)
+        if inventory.quantity >= threshold:
+            continue
+
+        daily_sales_rate = sales / RECENT_DAYS
+        days_until_stockout = (
+            int(inventory.quantity / daily_sales_rate)
+            if daily_sales_rate > 0 else None
+        )
+
+        supplier = get_primary_supplier(product.id)
+
+        alerts.append({
+            "product_id": product.id,
+            "product_name": product.name,
+            "sku": product.sku,
+            "warehouse_id": warehouse.id,
+            "warehouse_name": warehouse.name,
+            "current_stock": inventory.quantity,
+            "threshold": threshold,
+            "days_until_stockout": days_until_stockout,
+            "supplier": {
+                "id": supplier.id,
+                "name": supplier.name,
+                "contact_email": supplier.contact_email
+            }
+        })
+
+    return jsonify({
+        "alerts": alerts,
+        "total_alerts": len(alerts)
+    })
