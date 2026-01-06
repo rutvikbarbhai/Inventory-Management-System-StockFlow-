@@ -1,0 +1,67 @@
+Company (
+  id BIGINT PK,
+  name VARCHAR(255),
+  created_at TIMESTAMP
+)
+
+Warehouse (
+  id BIGINT PK,
+  company_id BIGINT FK -> Company(id),
+  name VARCHAR(255),
+  location TEXT
+)
+
+Product (
+  id BIGINT PK,
+  company_id BIGINT FK -> Company(id),
+  name VARCHAR(255),
+  sku VARCHAR(100) UNIQUE,
+  price DECIMAL(10,2),
+  product_type VARCHAR(50),
+  is_bundle BOOLEAN DEFAULT FALSE
+)
+
+Inventory (
+  id BIGINT PK,
+  product_id BIGINT FK -> Product(id),
+  warehouse_id BIGINT FK -> Warehouse(id),
+  quantity INT,
+  updated_at TIMESTAMP,
+  UNIQUE(product_id, warehouse_id)
+)
+
+InventoryChangeLog (
+  id BIGINT PK,
+  inventory_id BIGINT FK -> Inventory(id),
+  previous_qty INT,
+  new_qty INT,
+  changed_at TIMESTAMP,
+  reason VARCHAR(100)
+)
+
+Supplier (
+  id BIGINT PK,
+  name VARCHAR(255),
+  contact_email VARCHAR(255)
+)
+
+ProductSupplier (
+  product_id BIGINT FK -> Product(id),
+  supplier_id BIGINT FK -> Supplier(id),
+  PRIMARY KEY(product_id, supplier_id)
+)
+
+ProductBundle (
+  bundle_id BIGINT FK -> Product(id),
+  component_product_id BIGINT FK -> Product(id),
+  quantity INT,
+  PRIMARY KEY(bundle_id, component_product_id)
+)
+
+Sales (
+  id BIGINT PK,
+  product_id BIGINT FK,
+  warehouse_id BIGINT FK,
+  quantity INT,
+  sold_at TIMESTAMP
+)
