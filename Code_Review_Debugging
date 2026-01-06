@@ -1,0 +1,69 @@
+
+from decimal import Decimal, InvalidOperation
+from flask import request, jsonify
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm.exc import NoResultFound
+
+@app.route('/api/products', methods=['POST'])
+def create_product():
+    data = request.get_json() or {}
+
+    # 1. Required field validation
+    required_fields = ['name', 'sku', 'price', 'warehouse_id']
+    missing = [f for f in required_fields if f not in data]
+    if missing:
+        return jsonify({"error": f"Missing fields: {', '.join(missing)}"}), 400
+
+    # 2. Type & logical validation
+    try:
+        price = Decimal(str(data['price']))
+        if price < 0:
+            raise ValueError
+    except (InvalidOperation, ValueError):
+        return jsonify({"error": "Price must be a non-negative decimal"}), 400
+
+    try:
+        quantity = int(data.get('initial_quantity', 0))
+        if quantity < 0:
+            raise ValueError
+    except ValueError:
+        return jsonify({"error": "Initial quantity must be a non-negative integer"}), 400
+
+    try:
+        with db.session.begin():
+            # 3. Validate warehouse existence
+            warehouse = (
+                db.session.query(Warehouse)
+                .filter_by(id=data['warehouse_id'])
+                .one()
+            )
+
+            # 4. Create product
+            # Assumption: SKU uniqueness is global
+            product = Product(
+                name=data['name'],
+                sku=data['sku'],
+                price=price
+            )
+            db.session.add(product)
+            db.session.flush()
+
+            # 5. Create inventory record
+            inventory = Inventory(
+                product_id=product.id,
+                warehouse_id=warehouse.id,
+                quantity=quantity
+            )
+            db.session.add(inventory)
+
+        return jsonify({
+            "message": "Product created successfully",
+            "product_id": product.id
+        }), 201
+
+    except NoResultFound:
+        return jsonify({"error": "Warehouse not found"}), 404
+    except IntegrityError:
+        return jsonify({"error": "SKU already exists"}), 409
+    except Exception:
+        return jsonify({"error": "Internal server error"}), 500
